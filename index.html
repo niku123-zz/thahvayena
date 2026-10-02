@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CineFeels — Movie Sentiment Analyzer</title>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-0uHm+8Kq3oqfV3tP6iYzHP5MnFk+lQnA1wzVEP3UPyV9mWPtAKyoiqM8KZbQtdo80+eF9a1Waf0PZyxEnB7YfA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <title>CineFeels — Audience Feedback Analyzer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <style>
     /* ── Design Tokens ─────────────────────────────────────────── */
     :root {
@@ -15,10 +15,20 @@
       --text:      #111827;
       --muted:     #6b7280;
       --accent:    #4f46e5;
-      --pos:       #16a34a;
-      --neg:       #dc2626;
-      --pos-bg:    rgba(22, 163, 74, 0.12);
-      --neg-bg:    rgba(220, 38, 38, 0.12);
+      /* Sentiment polarity: diverging blue <-> red with a gray midpoint
+         (colorblind-safe, unlike green/red) */
+      --pos:       #2a78d6;
+      --pos-ink:   #1c5cab;
+      --pos-bg:    rgba(42, 120, 214, 0.10);
+      --neu:       #b9b7b0;
+      --neu-ink:   #52514e;
+      --neu-bg:    rgba(137, 135, 129, 0.12);
+      --neg:       #e34948;
+      --neg-ink:   #b42323;
+      --neg-bg:    rgba(227, 73, 72, 0.10);
+      --warn:      #b45309;
+      --warn-bg:   rgba(217, 119, 6, 0.12);
+      --grid:      #e1e0d9;
       --radius:    24px;
       --transition: 0.25s ease;
     }
@@ -33,463 +43,618 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 60px 20px 80px;
-    }
-
-    /* ── Background grain texture ──────────────────────────────── */
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-      pointer-events: none;
-      z-index: 0;
+      padding: 56px 16px 80px;
     }
 
     /* ── Header ────────────────────────────────────────────────── */
-    header {
-      text-align: center;
-      margin-bottom: 56px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .logo-line {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-
-    .film-strip {
-      display: flex;
-      gap: 5px;
-      opacity: 0.5;
-    }
-    .film-strip span {
-      width: 8px; height: 8px;
-      border-radius: 2px;
-      background: var(--accent);
-      display: block;
-    }
-
+    header { text-align: center; margin-bottom: 32px; }
+    .logo-line { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 12px; }
+    .film-strip { display: flex; gap: 5px; opacity: 0.5; }
+    .film-strip span { width: 8px; height: 8px; border-radius: 2px; background: var(--accent); display: block; }
     h1 {
       font-family: 'Playfair Display', serif;
-      font-size: clamp(2.8rem, 6vw, 4.5rem);
-      font-weight: 900;
-      color: var(--accent);
-      letter-spacing: -1px;
-      line-height: 1;
+      font-size: clamp(2.6rem, 6vw, 4.2rem);
+      font-weight: 900; color: var(--accent); letter-spacing: -1px; line-height: 1;
     }
+    .tagline { font-size: 0.95rem; color: var(--muted); font-weight: 300; letter-spacing: 0.12em; text-transform: uppercase; margin-top: 10px; }
+    .backend { margin-top: 10px; font-size: 0.75rem; color: var(--muted); }
 
-    .tagline {
-      font-size: 1rem;
-      color: var(--muted);
-      font-weight: 300;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      margin-top: 10px;
+    /* ── Tabs ──────────────────────────────────────────────────── */
+    .tabs {
+      display: flex; gap: 4px; padding: 4px; margin-bottom: 24px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
     }
+    .tab {
+      border: none; background: transparent; color: var(--muted); cursor: pointer;
+      font-family: inherit; font-size: 0.88rem; font-weight: 500;
+      padding: 9px 18px; border-radius: 999px; transition: all var(--transition);
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { background: var(--accent); color: #fff; }
+    .panel { display: none; width: 100%; max-width: 760px; }
+    .panel.active { display: block; }
 
     /* ── Card ──────────────────────────────────────────────────── */
     .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
+      background: var(--surface); border: 1px solid var(--border);
       box-shadow: 0 30px 80px rgba(15, 23, 42, 0.08);
-      border-radius: var(--radius);
-      padding: 40px;
-      width: 100%;
-      max-width: 680px;
-      position: relative;
-      z-index: 1;
+      border-radius: var(--radius); padding: 36px; width: 100%;
     }
+    .card + .card { margin-top: 24px; }
+    .card h2 { font-family: 'Playfair Display', serif; font-size: 1.45rem; margin-bottom: 6px; }
+    .card h3 { font-size: 0.75rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 26px 0 12px; }
+    .sub { color: var(--muted); font-size: 0.88rem; margin-bottom: 18px; line-height: 1.5; }
 
-    /* ── Label ─────────────────────────────────────────────────── */
-    label {
-      display: block;
-      font-size: 0.75rem;
-      font-weight: 500;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 10px;
-    }
-
-    /* ── Textarea ──────────────────────────────────────────────── */
-    .textarea-wrap {
-      position: relative;
-    }
+    label { display: block; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
 
     textarea {
-      width: 100%;
-      min-height: 160px;
-      background: #f8fafc;
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      color: var(--text);
-      font-family: 'DM Sans', sans-serif;
-      font-size: 1rem;
-      line-height: 1.7;
-      padding: 20px 22px;
-      resize: vertical;
-      outline: none;
+      width: 100%; min-height: 150px; background: #f8fafc;
+      border: 1px solid var(--border); border-radius: 18px; color: var(--text);
+      font-family: inherit; font-size: 1rem; line-height: 1.7; padding: 18px 20px;
+      resize: vertical; outline: none;
       transition: border-color var(--transition), box-shadow var(--transition);
-      box-shadow: inset 0 0 0 1px transparent;
     }
     textarea::placeholder { color: var(--muted); }
-    textarea:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
-    }
+    textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1); }
 
-    .char-count {
-      position: absolute;
-      bottom: 10px;
-      right: 14px;
-      font-size: 0.72rem;
-      color: var(--muted);
-      pointer-events: none;
+    .row { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .row-label { width: 100%; font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+    .pill-btn {
+      background: transparent; border: 1px solid var(--border); border-radius: 20px;
+      color: var(--muted); font-family: inherit; font-size: 0.78rem; padding: 5px 14px;
+      cursor: pointer; transition: all var(--transition); text-decoration: none;
+      display: inline-flex; align-items: center; gap: 6px;
     }
+    .pill-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .pill-btn.active { border-color: var(--accent); background: rgba(79,70,229,0.08); color: var(--accent); }
+    .pill-btn.danger:hover { border-color: var(--neg); color: var(--neg-ink); }
 
-    /* ── Quick Examples ────────────────────────────────────────── */
-    .examples {
-      margin-top: 14px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .examples-label {
-      width: 100%;
-      font-size: 0.7rem;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-    .example-btn {
-      background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      color: var(--muted);
-      font-family: 'DM Sans', sans-serif;
-      font-size: 0.78rem;
-      padding: 5px 14px;
-      cursor: pointer;
-      transition: all var(--transition);
-    }
-    .example-btn:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
-
-    /* ── Analyze Button ────────────────────────────────────────── */
-    .analyze-btn {
-      margin-top: 24px;
-      width: 100%;
-      padding: 16px;
-      background: var(--accent);
-      color: #ffffff;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 0.95rem;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      border: none;
-      border-radius: 16px;
-      cursor: pointer;
-      transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
+    .primary-btn {
+      margin-top: 22px; width: 100%; padding: 15px; background: var(--accent); color: #fff;
+      font-family: inherit; font-size: 0.95rem; font-weight: 600; letter-spacing: 0.04em;
+      border: none; border-radius: 16px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
       box-shadow: 0 18px 40px rgba(79, 70, 229, 0.18);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
     }
-    .analyze-btn:hover { transform: translateY(-2px); box-shadow: 0 22px 45px rgba(79, 70, 229, 0.24); }
-    .analyze-btn:active { transform: translateY(0); }
-    .analyze-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
-
-    /* spinning loader icon */
-    .spinner {
-      display: none;
-      width: 18px; height: 18px;
-      border: 2px solid rgba(0,0,0,0.3);
-      border-top-color: #000;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-    }
+    .primary-btn:hover { transform: translateY(-2px); }
+    .primary-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+    .spinner { display: none; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .loading .spinner { display: block; }
-    .loading .btn-text { display: none; }
+    .loading .btn-icon { display: none; }
 
-    /* ── Result Panel ──────────────────────────────────────────── */
-    .result {
-      margin-top: 28px;
-      border-radius: 12px;
-      padding: 28px;
-      display: none;
-      animation: fadeSlide 0.35s ease;
-      border: 1px solid transparent;
-    }
-    @keyframes fadeSlide {
-      from { opacity: 0; transform: translateY(10px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .result.positive { background: var(--pos-bg); border-color: rgba(34,197,94,0.2); }
-    .result.negative { background: var(--neg-bg); border-color: rgba(239,68,68,0.2); }
-
-    .result-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 20px;
-    }
-
-    .result-emoji { font-size: 2.8rem; line-height: 1; }
-    .result-emoji i { font-size: inherit; }
-
-    .result-label {
-      font-family: 'Playfair Display', serif;
-      font-size: 2rem;
-      font-weight: 700;
-    }
-    .positive .result-label { color: var(--pos); }
-    .negative .result-label { color: var(--neg); }
-
-    .confidence-badge {
-      font-size: 0.78rem;
-      font-weight: 500;
-      padding: 5px 12px;
-      border-radius: 20px;
-      letter-spacing: 0.05em;
-    }
-    .positive .confidence-badge { background: rgba(34,197,94,0.15); color: var(--pos); }
-    .negative .confidence-badge { background: rgba(239,68,68,0.15); color: var(--neg); }
-
-    /* ── Confidence Bar ────────────────────────────────────────── */
-    .bar-section { }
-    .bar-label-row {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.75rem;
-      color: var(--muted);
-      margin-bottom: 8px;
-    }
-    .bar-track {
-      background: var(--border);
-      border-radius: 6px;
-      height: 8px;
-      overflow: hidden;
-    }
-    .bar-fill {
-      height: 100%;
-      border-radius: 6px;
-      transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
-      width: 0%;
-    }
-    .positive .bar-fill { background: var(--pos); }
-    .negative .bar-fill { background: var(--neg); }
-
-    /* ── Error State ───────────────────────────────────────────── */
     .error-msg {
-      margin-top: 14px;
-      padding: 12px 16px;
-      background: rgba(239,68,68,0.08);
-      border: 1px solid rgba(239,68,68,0.2);
-      border-radius: 10px;
-      color: var(--neg);
-      font-size: 0.88rem;
-      display: none;
+      margin-top: 14px; padding: 12px 16px; background: var(--neg-bg);
+      border: 1px solid rgba(227,73,72,0.25); border-radius: 10px; color: var(--neg-ink);
+      font-size: 0.88rem; display: none;
     }
 
-    /* ── Footer ────────────────────────────────────────────────── */
-    footer {
-      margin-top: 48px;
-      text-align: center;
-      color: var(--muted);
-      font-size: 0.78rem;
-      z-index: 1;
-      position: relative;
+    .file-input { display: none; }
+    .fade-in { animation: fadeSlide 0.35s ease; }
+    @keyframes fadeSlide { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+    /* ── Single result ─────────────────────────────────────────── */
+    .verdict { display: flex; align-items: center; gap: 16px; margin-top: 28px; }
+    .verdict-icon { font-size: 2.4rem; }
+    .verdict-label { font-family: 'Playfair Display', serif; font-size: 1.9rem; font-weight: 700; line-height: 1.1; }
+    .verdict-meta { font-size: 0.85rem; color: var(--muted); }
+    .positive .verdict-icon, .positive .verdict-label { color: var(--pos-ink); }
+    .negative .verdict-icon, .negative .verdict-label { color: var(--neg-ink); }
+    .neutral  .verdict-icon, .neutral  .verdict-label { color: var(--neu-ink); }
+    .review-note {
+      margin-top: 14px; padding: 10px 14px; border-radius: 10px;
+      background: var(--warn-bg); color: var(--warn); font-size: 0.85rem;
     }
-    footer a { color: var(--accent); text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
+
+    /* Stacked probability bar: negative | neutral | positive */
+    .stack { display: flex; gap: 2px; height: 10px; margin-top: 20px; }
+    .stack > div { border-radius: 2px; min-width: 0; transition: flex-grow 0.6s ease; }
+    .stack > div:first-child { border-radius: 4px 2px 2px 4px; }
+    .stack > div:last-child  { border-radius: 2px 4px 4px 2px; }
+    .seg-negative { background: var(--neg); }
+    .seg-neutral  { background: var(--neu); }
+    .seg-positive { background: var(--pos); }
+    .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; font-size: 0.8rem; color: var(--neu-ink); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend i.sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+    /* Review text with each clause underlined by its sentiment */
+    .clauses { line-height: 2; font-size: 0.95rem; }
+    .clause { padding: 2px 4px; border-radius: 4px; border-bottom: 2px solid; margin-right: 4px; cursor: default; }
+    .clause.positive { background: var(--pos-bg); border-color: var(--pos); }
+    .clause.negative { background: var(--neg-bg); border-color: var(--neg); }
+    .clause.neutral  { background: var(--neu-bg); border-color: var(--neu); }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 0.8rem; color: var(--muted); }
+    .chips + .chips { margin-top: 8px; }
+    .chip { font-size: 0.78rem; padding: 3px 10px; border-radius: 999px; }
+    .chip.positive { background: var(--pos-bg); color: var(--pos-ink); }
+    .chip.negative { background: var(--neg-bg); color: var(--neg-ink); }
+
+    /* ── Diverging aspect bars ─────────────────────────────────── */
+    .aspects { display: flex; flex-direction: column; gap: 10px; }
+    .aspect-row { display: grid; grid-template-columns: 70px 1fr 48px; align-items: center; gap: 12px; font-size: 0.85rem; }
+    .aspect-name { color: var(--neu-ink); text-transform: capitalize; }
+    .aspect-track { position: relative; height: 18px; }
+    .aspect-track::before { /* zero baseline */
+      content: ''; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: #c3c2b7;
+    }
+    .aspect-bar { position: absolute; top: 4px; height: 10px; }
+    .aspect-bar.positive { left: calc(50% + 1px); background: var(--pos); border-radius: 0 4px 4px 0; }
+    .aspect-bar.negative { right: calc(50% + 1px); background: var(--neg); border-radius: 4px 0 0 4px; }
+    .aspect-hit { position: absolute; inset: -4px 0; } /* bigger hover target than the bar */
+    .aspect-val { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+    .axis-ends { display: grid; grid-template-columns: 70px 1fr 48px; gap: 12px; font-size: 0.7rem; color: #898781; margin-top: 2px; }
+    .axis-ends div { display: flex; justify-content: space-between; }
+    .empty { color: var(--muted); font-size: 0.85rem; }
+
+    /* ── Stat tiles ────────────────────────────────────────────── */
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 24px; }
+    .stat { border: 1px solid var(--border); border-radius: 14px; padding: 14px 12px; }
+    .stat b { display: block; font-size: 1.6rem; font-weight: 600; }
+    .stat span { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .stat small { display: block; font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+
+    /* ── Review list ───────────────────────────────────────────── */
+    .list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .list li { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; font-size: 0.88rem; }
+    .tag { flex-shrink: 0; font-size: 0.7rem; font-weight: 600; padding: 3px 8px; border-radius: 999px; min-width: 92px; text-align: center; }
+    .tag.positive { background: var(--pos-bg); color: var(--pos-ink); }
+    .tag.negative { background: var(--neg-bg); color: var(--neg-ink); }
+    .tag.neutral  { background: var(--neu-bg); color: var(--neu-ink); }
+    .tag.uncertain { background: var(--warn-bg); color: var(--warn); }
+    .list .meta { display: block; color: var(--muted); font-size: 0.75rem; margin-top: 3px; }
+
+    /* ── Trend chart ───────────────────────────────────────────── */
+    .trend svg { width: 100%; height: auto; display: block; overflow: visible; }
+    .trend .gridline { stroke: var(--grid); stroke-width: 1; }
+    .trend .baseline { stroke: #c3c2b7; stroke-width: 1; }
+    .trend .tick { fill: #898781; font-size: 11px; font-family: 'DM Sans', sans-serif; }
+    .trend .line { fill: none; stroke: var(--pos); stroke-width: 2; }
+    .trend .dot { fill: var(--pos); stroke: var(--surface); stroke-width: 2; }
+
+    .tooltip {
+      position: fixed; pointer-events: none; z-index: 10; display: none;
+      background: #111827; color: #fff; font-size: 0.78rem; line-height: 1.4;
+      padding: 7px 10px; border-radius: 8px; max-width: 260px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th { text-align: left; font-weight: 500; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+    td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    td.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+    .table-wrap { overflow-x: auto; }
+
+    footer { margin-top: 40px; text-align: center; color: var(--muted); font-size: 0.78rem; }
+
+    @media (max-width: 560px) {
+      .card { padding: 22px; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .tab { padding: 8px 12px; font-size: 0.8rem; }
+      .aspect-row, .axis-ends { grid-template-columns: 58px 1fr 42px; gap: 8px; }
+    }
   </style>
 </head>
 <body>
 
-  <!-- Header -->
   <header>
     <div class="logo-line">
-      <div class="film-strip">
-        <span></span><span></span><span></span>
-      </div>
+      <div class="film-strip"><span></span><span></span><span></span></div>
       <h1>CineFeels</h1>
-      <div class="film-strip">
-        <span></span><span></span><span></span>
-      </div>
+      <div class="film-strip"><span></span><span></span><span></span></div>
     </div>
-    <p class="tagline">Movie Review Sentiment Analyzer</p>
+    <p class="tagline">Audience Feedback Analyzer</p>
+    <p class="backend" id="backend"></p>
   </header>
 
-  <!-- Main Card -->
-  <div class="card">
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="analyze" role="tab">Analyze</button>
+    <button class="tab" data-tab="batch" role="tab">Batch &amp; CSV</button>
+    <button class="tab" data-tab="dashboard" role="tab">Dashboard</button>
+  </nav>
 
-    <label for="reviewInput">Paste or type a movie review</label>
+  <!-- ── Analyze one review ─────────────────────────────────────── -->
+  <section class="panel active" id="panel-analyze">
+    <div class="card">
+      <label for="reviewInput">Paste or type a movie review</label>
+      <textarea id="reviewInput" maxlength="5000"
+        placeholder="e.g. &quot;The cinematography was stunning, but the plot fell apart in the second half.&quot;"></textarea>
 
-    <!-- Textarea -->
-    <div class="textarea-wrap">
-      <textarea
-        id="reviewInput"
-        placeholder="e.g. "This film was a masterpiece — the acting, cinematography, and story all came together perfectly.""
-        maxlength="1000"
-        oninput="updateCharCount(this)"
-      ></textarea>
-      <span class="char-count" id="charCount">0 / 1000</span>
-    </div>
-
-    <!-- Quick example buttons -->
-    <div class="examples">
-      <span class="examples-label">Quick examples →</span>
-      <button class="example-btn" onclick="fillExample('positive')"><i class="fa-solid fa-face-smile"></i> Positive review</button>
-      <button class="example-btn" onclick="fillExample('negative')"><i class="fa-solid fa-face-frown"></i> Negative review</button>
-      <button class="example-btn" onclick="fillExample('mixed')"><i class="fa-solid fa-face-meh"></i> Mixed review</button>
-    </div>
-
-    <!-- Analyze Button -->
-    <button class="analyze-btn" id="analyzeBtn" onclick="analyze()">
-      <div class="spinner"></div>
-      <i class="fa-solid fa-magnifying-glass"></i>
-      <span class="btn-text">Analyze Sentiment</span>
-    </button>
-
-    <!-- Error Message -->
-    <div class="error-msg" id="errorMsg"></div>
-
-    <!-- Result Panel -->
-    <div class="result" id="resultPanel">
-      <div class="result-top">
-        <div>
-          <div class="result-emoji" id="resultEmoji"></div>
-        </div>
-        <div>
-          <div class="result-label" id="resultLabel"></div>
-          <div class="confidence-badge" id="confidenceBadge"></div>
-        </div>
+      <div class="row">
+        <span class="row-label">Quick examples →</span>
+        <button class="pill-btn" onclick="fillExample('positive')"><i class="fa-solid fa-face-smile"></i> Positive</button>
+        <button class="pill-btn" onclick="fillExample('negative')"><i class="fa-solid fa-face-frown"></i> Negative</button>
+        <button class="pill-btn" onclick="fillExample('mixed')"><i class="fa-solid fa-face-meh"></i> Mixed</button>
       </div>
-      <div class="bar-section">
-        <div class="bar-label-row">
-          <span>Confidence</span>
-          <span id="confidencePct"></span>
-        </div>
-        <div class="bar-track">
-          <div class="bar-fill" id="barFill"></div>
-        </div>
-      </div>
+
+      <button class="primary-btn" id="analyzeBtn" onclick="analyze()">
+        <div class="spinner"></div>
+        <i class="fa-solid fa-magnifying-glass btn-icon"></i>
+        <span>Analyze Review</span>
+      </button>
+      <div class="error-msg" id="analyzeError"></div>
+      <div id="analyzeResult"></div>
     </div>
+  </section>
 
-  </div>
+  <!-- ── Batch & CSV ────────────────────────────────────────────── -->
+  <section class="panel" id="panel-batch">
+    <div class="card">
+      <h2>Audience feedback triage</h2>
+      <p class="sub">Paste reviews one per line, or upload a CSV with a <code>review</code>/<code>text</code>/<code>comment</code> column. You'll get the overall split and a score for each aspect, with the most negative reviews listed first.</p>
 
-  <!-- Footer -->
+      <label for="batchInput">Reviews (one per line)</label>
+      <textarea id="batchInput" placeholder="One review per line…"></textarea>
+
+      <div class="row">
+        <button class="pill-btn" onclick="loadSampleBatch()"><i class="fa-solid fa-list"></i> Load sample batch</button>
+        <button class="pill-btn" onclick="document.getElementById('csvFile').click()"><i class="fa-solid fa-file-csv"></i> Upload CSV</button>
+        <input type="file" id="csvFile" class="file-input" accept=".csv,text/csv" onchange="uploadCsv(this)" />
+      </div>
+
+      <button class="primary-btn" id="batchBtn" onclick="analyzeBatch()">
+        <div class="spinner"></div>
+        <i class="fa-solid fa-layer-group btn-icon"></i>
+        <span>Triage Reviews</span>
+      </button>
+      <div class="error-msg" id="batchError"></div>
+    </div>
+    <div id="batchResult"></div>
+  </section>
+
+  <!-- ── Dashboard ──────────────────────────────────────────────── -->
+  <section class="panel" id="panel-dashboard">
+    <div class="card">
+      <h2>Feedback dashboard</h2>
+      <p class="sub">Everything analyzed so far, from single reviews, batches and CSV uploads.</p>
+      <div class="row">
+        <a class="pill-btn" href="/export.csv"><i class="fa-solid fa-download"></i> Export CSV</a>
+        <button class="pill-btn" onclick="loadDashboard()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+        <button class="pill-btn danger" onclick="clearHistory()"><i class="fa-solid fa-trash"></i> Clear history</button>
+      </div>
+      <div id="dashboard"></div>
+    </div>
+  </section>
+
+  <div class="tooltip" id="tooltip"></div>
+
   <footer>
-    Powered by <a href="#">FastAPI</a> &amp; Logistic Regression on IMDB Reviews &nbsp;·&nbsp;
-    Run <code>uvicorn main:app --reload</code> to start the server
+    Built with FastAPI · Model: RoBERTa sentiment (TF-IDF fallback) · API docs at <a href="/docs">/docs</a>
   </footer>
 
   <script>
-    // ── Update character counter ────────────────────────────────
-    function updateCharCount(el) {
-      document.getElementById('charCount').textContent =
-        `${el.value.length} / 1000`;
+    // ── Small utilities ────────────────────────────────────────
+    const $ = id => document.getElementById(id);
+    const pct = x => `${Math.round(x * 100)}%`;
+    const signed = x => (x > 0 ? '+' : '') + x.toFixed(2);
+    const cap = s => s[0].toUpperCase() + s.slice(1);
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
 
-    // ── Fill textarea with a quick example ────────────────────
+    async function api(path, options = {}) {
+      const res = await fetch(path, options);
+      if (!res.ok) {
+        let detail = `Server error ${res.status}`;
+        try { detail = (await res.json()).detail || detail; } catch {}
+        throw new Error(detail);
+      }
+      return res.json();
+    }
+
+    function setLoading(btn, on) {
+      btn.disabled = on;
+      btn.classList.toggle('loading', on);
+    }
+
+    function showError(el, msg) {
+      el.textContent = msg;
+      el.style.display = msg ? 'block' : 'none';
+    }
+
+    // State shown on a tag: uncertain wins over the raw label
+    const stateOf = r => r.needs_review ? 'uncertain' : r.sentiment;
+    const stateName = r => r.needs_review ? `Uncertain` : cap(r.sentiment);
+
+    // ── Tooltip (shared by all charts) ─────────────────────────
+    const tip = $('tooltip');
+    document.addEventListener('mousemove', e => {
+      const t = e.target.closest('[data-tip]');
+      if (!t) { tip.style.display = 'none'; return; }
+      tip.innerHTML = t.dataset.tip;
+      tip.style.display = 'block';
+      const x = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8);
+      tip.style.left = `${x}px`;
+      tip.style.top = `${e.clientY + 14}px`;
+    });
+
+    // ── Tabs ───────────────────────────────────────────────────
+    document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${btn.dataset.tab}`));
+      if (btn.dataset.tab === 'dashboard') loadDashboard();
+    }));
+
+    // ── Shared renderers ───────────────────────────────────────
+    function probabilityBar(p) {
+      const order = ['negative', 'neutral', 'positive'];
+      const segs = order.map(k =>
+        `<div class="seg-${k}" style="flex-grow:${p[k]}" data-tip="${cap(k)}: ${pct(p[k])}"></div>`).join('');
+      const legend = order.map(k =>
+        `<span><i class="sw seg-${k}"></i>${cap(k)} ${pct(p[k])}</span>`).join('');
+      return `<div class="stack">${segs}</div><div class="legend">${legend}</div>`;
+    }
+
+    // aspects: {name: score} or {name: {avg, mentions}}
+    function aspectChart(aspects) {
+      const entries = Object.entries(aspects).map(([name, v]) =>
+        typeof v === 'number' ? { name, avg: v } : { name, ...v });
+      if (!entries.length) return `<p class="empty">No specific aspects (acting, story, visuals, sound, pacing, ending) mentioned.</p>`;
+      entries.sort((a, b) => a.avg - b.avg);
+      const rows = entries.map(a => {
+        const cls = a.avg >= 0 ? 'positive' : 'negative';
+        const w = Math.max(Math.abs(a.avg) * 50, 0.5);
+        const mentions = a.mentions ? ` · ${a.mentions} mention${a.mentions > 1 ? 's' : ''}` : '';
+        return `<div class="aspect-row">
+          <span class="aspect-name">${a.name}</span>
+          <div class="aspect-track">
+            <div class="aspect-bar ${cls}" style="width:${w}%"></div>
+            <div class="aspect-hit" data-tip="<b>${cap(a.name)}</b>: ${signed(a.avg)}${mentions}"></div>
+          </div>
+          <span class="aspect-val">${signed(a.avg)}</span>
+        </div>`;
+      }).join('');
+      return `<div class="aspects">${rows}</div>
+        <div class="axis-ends"><span></span><div><span>−1 negative</span><span>0</span><span>positive +1</span></div><span></span></div>`;
+    }
+
+    function statTiles(tiles) {
+      return `<div class="stats">${tiles.map(t =>
+        `<div class="stat"><span>${t.label}</span><b>${t.value}</b>${t.note ? `<small>${t.note}</small>` : ''}</div>`
+      ).join('')}</div>`;
+    }
+
+    // ── Analyze one review ─────────────────────────────────────
     const examples = {
       positive: "This movie was absolutely fantastic! The acting was superb and the storyline kept me hooked from start to finish. One of the best films I have seen in years.",
       negative: "What a complete waste of time. The plot made no sense, the characters were flat, and the pacing was painfully slow. I almost walked out.",
-      mixed: "The visuals were stunning and the soundtrack was great, but the story felt rushed and the ending was disappointing. Worth watching once, but nothing remarkable."
+      mixed: "The cinematography was stunning and the soundtrack was great, but the story felt rushed and the ending was disappointing. The cast did their best."
     };
     function fillExample(type) {
-      const ta = document.getElementById('reviewInput');
-      ta.value = examples[type];
-      updateCharCount(ta);
-      // Clear previous result
-      document.getElementById('resultPanel').style.display = 'none';
-      document.getElementById('errorMsg').style.display = 'none';
+      $('reviewInput').value = examples[type];
+      $('analyzeResult').innerHTML = '';
     }
 
-    // ── Main analyze function ──────────────────────────────────
     async function analyze() {
-      const text = document.getElementById('reviewInput').value.trim();
-      const btn  = document.getElementById('analyzeBtn');
-      const err  = document.getElementById('errorMsg');
-      const panel = document.getElementById('resultPanel');
+      const text = $('reviewInput').value.trim();
+      const btn = $('analyzeBtn');
+      showError($('analyzeError'), '');
+      $('analyzeResult').innerHTML = '';
+      if (!text) return showError($('analyzeError'), 'Please enter a review before analyzing.');
 
-      // Hide old results / errors
-      panel.style.display = 'none';
-      err.style.display = 'none';
-
-      if (!text) {
-        showError('Please enter a review before analyzing.');
-        return;
-      }
-
-      // Show loading state
-      btn.disabled = true;
-      btn.classList.add('loading');
-
+      setLoading(btn, true);
       try {
-        // POST the review text to the FastAPI /predict endpoint
-        const response = await fetch('/predict', {
+        const r = await api('/predict', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text })
         });
-
-        if (!response.ok) throw new Error(`Server error: ${response.status}`);
-
-        const data = await response.json();
-        showResult(data);
-
+        renderSingle(r);
       } catch (e) {
-        showError(`Could not reach the server. Make sure FastAPI is running on port 8000.\n(${e.message})`);
+        showError($('analyzeError'), `Analysis failed: ${e.message}`);
       } finally {
-        btn.disabled = false;
-        btn.classList.remove('loading');
+        setLoading(btn, false);
       }
     }
 
-    // ── Render the result panel ────────────────────────────────
-    function showResult(data) {
-      const panel = document.getElementById('resultPanel');
-      const pct   = Math.round(data.confidence * 100);
-      const isPos = data.sentiment === 'positive';
+    function renderSingle(r) {
+      const icon = { positive: 'fa-face-smile', negative: 'fa-face-frown', neutral: 'fa-face-meh' }[r.sentiment];
+      const note = r.needs_review
+        ? `<div class="review-note"><i class="fa-solid fa-flag"></i> Leans ${r.sentiment}, but the model is only ${pct(r.confidence)} sure. It's probably a mixed review; check the breakdown below or have a human read it.</div>`
+        : '';
 
-      panel.className  = `result ${data.sentiment}`;
-      panel.style.display = 'block';
+      const clauses = r.clauses.map(c =>
+        `<span class="clause ${c.sentiment}" data-tip="${cap(c.sentiment)} · ${pct(c.confidence)}${c.aspects.length ? '<br>' + c.aspects.join(', ') : ''}">${escapeHtml(c.text)}</span>`
+      ).join(' ');
 
-      document.getElementById('resultEmoji').innerHTML    = isPos ? '<i class="fa-solid fa-face-smile"></i>' : '<i class="fa-solid fa-face-frown"></i>';
-      document.getElementById('resultLabel').textContent    = isPos ? 'Positive' : 'Negative';
-      document.getElementById('confidenceBadge').textContent = `${pct}% confident`;
-      document.getElementById('confidencePct').textContent  = `${pct}%`;
+      const chips = (words, cls, title) => words.length
+        ? `<div class="chips">${title} ${words.map(w => `<span class="chip ${cls}">${escapeHtml(w)}</span>`).join('')}</div>` : '';
+      const why = chips(r.positive_words, 'positive', 'Pushed positive') + chips(r.negative_words, 'negative', 'Pushed negative');
 
-      // Animate the bar after a tiny delay so CSS transition fires
-      const bar = document.getElementById('barFill');
-      bar.style.width = '0%';
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => { bar.style.width = `${pct}%`; });
-      });
+      $('analyzeResult').innerHTML = `<div class="fade-in">
+        <div class="verdict ${r.sentiment}">
+          <i class="fa-solid ${icon} verdict-icon"></i>
+          <div>
+            <div class="verdict-label">${cap(r.sentiment)}</div>
+            <div class="verdict-meta">${pct(r.confidence)} confident · score ${signed(r.score)}</div>
+          </div>
+        </div>
+        ${note}
+        ${probabilityBar(r.probabilities)}
+        <h3>Aspect breakdown</h3>
+        ${aspectChart(r.aspects)}
+        <h3>Clause by clause</h3>
+        <div class="clauses">${clauses}</div>
+        ${why ? `<h3>Words that drove the decision</h3>${why}` : ''}
+      </div>`;
     }
 
-    // ── Show an error message ──────────────────────────────────
-    function showError(msg) {
-      const el = document.getElementById('errorMsg');
-      el.textContent = msg;
-      el.style.display = 'block';
-    }
-
-    // ── Allow Ctrl+Enter to submit ─────────────────────────────
-    document.getElementById('reviewInput').addEventListener('keydown', (e) => {
+    $('reviewInput').addEventListener('keydown', e => {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) analyze();
     });
+
+    // ── Batch & CSV ────────────────────────────────────────────
+    const sampleBatch = [
+      "Absolutely loved it, the cast was brilliant and the story was moving.",
+      "The sound kept cutting out and the plot was a mess. Want my money back.",
+      "Beautiful cinematography and a great soundtrack. A true classic.",
+      "It was fine I guess, some parts dragged.",
+      "Worst film this year. Terrible acting and a boring script.",
+      "The chemistry between the leads was electric. Would watch again.",
+      "Too long, and the ending was a massive disappointment.",
+      "Stunning visuals, but the dialogue was painfully clunky.",
+      "Went in with low expectations and came out smiling. Great soundtrack too.",
+      "The audio mix was awful, I could barely hear the actors."
+    ].join('\n');
+    function loadSampleBatch() { $('batchInput').value = sampleBatch; }
+
+    let batchData = null, batchFilter = 'all';
+
+    async function analyzeBatch() {
+      const reviews = $('batchInput').value.split('\n').map(s => s.trim()).filter(Boolean);
+      if (!reviews.length) return showError($('batchError'), 'Add at least one review.');
+      await runBatch(() => api('/predict-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviews })
+      }));
+    }
+
+    async function uploadCsv(input) {
+      const file = input.files[0];
+      input.value = '';
+      if (!file) return;
+      const form = new FormData();
+      form.append('file', file);
+      await runBatch(() => api('/upload-csv', { method: 'POST', body: form }));
+    }
+
+    async function runBatch(request) {
+      const btn = $('batchBtn');
+      showError($('batchError'), '');
+      $('batchResult').innerHTML = '';
+      setLoading(btn, true);
+      try {
+        batchData = await request();
+        batchFilter = 'all';
+        renderBatch();
+      } catch (e) {
+        showError($('batchError'), `Analysis failed: ${e.message}`);
+      } finally {
+        setLoading(btn, false);
+      }
+    }
+
+    function setBatchFilter(f) { batchFilter = f; renderBatch(); }
+
+    function renderBatch() {
+      const d = batchData;
+      const filters = { all: () => true, negative: r => r.sentiment === 'negative', uncertain: r => r.needs_review };
+      const shown = d.results.filter(filters[batchFilter]);
+      const items = shown.map(r => `<li>
+          <span class="tag ${stateOf(r)}">${stateName(r)} · ${pct(r.confidence)}</span>
+          <span>${escapeHtml(r.text)}
+            ${Object.keys(r.aspects).length ? `<span class="meta">${Object.entries(r.aspects).map(([a, s]) => `${a} ${signed(s)}`).join(' · ')}</span>` : ''}
+          </span>
+        </li>`).join('');
+      const btn = (key, text) => `<button class="pill-btn ${batchFilter === key ? 'active' : ''}" onclick="setBatchFilter('${key}')">${text}</button>`;
+
+      $('batchResult').innerHTML = `<div class="card fade-in">
+        <h2>Results</h2>
+        ${statTiles([
+          { label: 'Reviews', value: d.total },
+          { label: 'Positive', value: d.counts.positive, note: pct(d.counts.positive / d.total) },
+          { label: 'Negative', value: d.counts.negative, note: pct(d.counts.negative / d.total) },
+          { label: 'Needs review', value: d.needs_review, note: 'low confidence' },
+        ])}
+        <h3>Sentiment mix</h3>
+        ${probabilityBar({
+          negative: d.counts.negative / d.total,
+          neutral: d.counts.neutral / d.total,
+          positive: d.counts.positive / d.total
+        })}
+        <h3>What audiences think about each aspect</h3>
+        ${aspectChart(d.aspects)}
+        <h3>Reviews, most negative first</h3>
+        <div class="row" style="margin: 0 0 12px">
+          ${btn('all', `All (${d.total})`)}
+          ${btn('negative', `Negative (${d.counts.negative})`)}
+          ${btn('uncertain', `Needs review (${d.needs_review})`)}
+        </div>
+        <ul class="list">${items || '<li class="empty">Nothing in this filter.</li>'}</ul>
+      </div>`;
+    }
+
+    // ── Dashboard ──────────────────────────────────────────────
+    async function loadDashboard() {
+      const el = $('dashboard');
+      try {
+        const [s, recent] = await Promise.all([api('/stats'), api('/history?limit=15')]);
+        if (!s.total) {
+          el.innerHTML = `<p class="empty" style="margin-top:24px">No analyses yet. Analyze a review or run a batch, and the results will show up here.</p>`;
+          return;
+        }
+        const aspectMentions = Object.values(s.aspects).reduce((n, a) => n + a.mentions, 0);
+        el.innerHTML = `
+          ${statTiles([
+            { label: 'Analyzed', value: s.total },
+            { label: 'Avg score', value: signed(s.avg_score), note: '−1 to +1' },
+            { label: 'Positive', value: pct(s.counts.positive / s.total), note: `${s.counts.positive} reviews` },
+            { label: 'Needs review', value: s.needs_review, note: 'low confidence' },
+          ])}
+          <h3>Sentiment mix</h3>
+          ${probabilityBar({
+            negative: s.counts.negative / s.total,
+            neutral: s.counts.neutral / s.total,
+            positive: s.counts.positive / s.total
+          })}
+          <h3>Aspect scores <span style="text-transform:none;letter-spacing:0">(${aspectMentions} mentions)</span></h3>
+          ${aspectChart(s.aspects)}
+          <h3>Average score by day</h3>
+          ${trendChart(s.trend)}
+          <h3>Recent analyses</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Review</th><th>Result</th><th style="text-align:right">Score</th><th>Source</th></tr></thead>
+            <tbody>${recent.map(r => `<tr>
+              <td>${escapeHtml(r.text.length > 110 ? r.text.slice(0, 110) + '…' : r.text)}</td>
+              <td><span class="tag ${stateOf(r)}">${stateName(r)}</span></td>
+              <td class="num">${signed(r.score)}</td>
+              <td>${r.source}</td>
+            </tr>`).join('')}</tbody>
+          </table></div>`;
+      } catch (e) {
+        el.innerHTML = `<div class="error-msg" style="display:block">Could not load dashboard: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    // Line chart of daily average score on a fixed −1..+1 axis
+    function trendChart(trend) {
+      if (trend.length < 2) {
+        return `<p class="empty">The trend appears once you have data from at least two days${trend.length ? ` (today so far: average ${signed(trend[0].avg_score)} across ${trend[0].count} reviews)` : ''}.</p>`;
+      }
+      const W = 640, H = 200, L = 34, R = 12, T = 10, B = 26;
+      const x = i => L + (i * (W - L - R)) / (trend.length - 1);
+      const y = v => T + ((1 - v) / 2) * (H - T - B);
+      const grid = [-1, -0.5, 0, 0.5, 1].map(v =>
+        `<line class="${v === 0 ? 'baseline' : 'gridline'}" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/>
+         <text class="tick" x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v > 0 ? '+' : ''}${v}</text>`).join('');
+      const step = Math.ceil(trend.length / 6);
+      const xLabels = trend.map((d, i) => i % step === 0 || i === trend.length - 1
+        ? `<text class="tick" x="${x(i)}" y="${H - 6}" text-anchor="middle">${d.date.slice(5)}</text>` : '').join('');
+      const path = trend.map((d, i) => `${i ? 'L' : 'M'}${x(i)},${y(d.avg_score)}`).join(' ');
+      const dots = trend.map((d, i) => `
+        <circle class="dot" cx="${x(i)}" cy="${y(d.avg_score)}" r="4"/>
+        <circle cx="${x(i)}" cy="${y(d.avg_score)}" r="12" fill="transparent"
+          data-tip="<b>${d.date}</b><br>Avg score ${signed(d.avg_score)}<br>${d.count} reviews"/>`).join('');
+      return `<div class="trend"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Average sentiment score by day">
+        ${grid}${xLabels}<path class="line" d="${path}"/>${dots}</svg></div>`;
+    }
+
+    async function clearHistory() {
+      if (!confirm('Delete all stored analyses? This cannot be undone.')) return;
+      await api('/history', { method: 'DELETE' });
+      loadDashboard();
+    }
+
+    // ── Show which model is active ─────────────────────────────
+    api('/health').then(h => {
+      $('backend').textContent = h.backend === 'transformer'
+        ? 'Model: RoBERTa transformer · 3-class sentiment'
+        : 'Model: TF-IDF + Logistic Regression (fallback)';
+    }).catch(() => {});
   </script>
 </body>
 </html>
