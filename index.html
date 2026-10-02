@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CineFeels — Movie Sentiment Analyzer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-0uHm+8Kq3oqfV3tP6iYzHP5MnFk+lQnA1wzVEP3UPyV9mWPtAKyoiqM8KZbQtdo80+eF9a1Waf0PZyxEnB7YfA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+    /* ── Design Tokens ─────────────────────────────────────────── */
+    :root {
+      --bg:        #f8fafc;
+      --surface:   #ffffff;
+      --border:    #e5e7eb;
+      --text:      #111827;
+      --muted:     #6b7280;
+      --accent:    #4f46e5;
+      --pos:       #16a34a;
+      --neg:       #dc2626;
+      --pos-bg:    rgba(22, 163, 74, 0.12);
+      --neg-bg:    rgba(220, 38, 38, 0.12);
+      --radius:    24px;
+      --transition: 0.25s ease;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: radial-gradient(circle at top, #ffffff, #f8fafc 45%, #eef2ff 100%);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 60px 20px 80px;
+    }
+
+    /* ── Background grain texture ──────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Header ────────────────────────────────────────────────── */
+    header {
+      text-align: center;
+      margin-bottom: 56px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .logo-line {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .film-strip {
+      display: flex;
+      gap: 5px;
+      opacity: 0.5;
+    }
+    .film-strip span {
+      width: 8px; height: 8px;
+      border-radius: 2px;
+      background: var(--accent);
+      display: block;
+    }
+
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2.8rem, 6vw, 4.5rem);
+      font-weight: 900;
+      color: var(--accent);
+      letter-spacing: -1px;
+      line-height: 1;
+    }
+
+    .tagline {
+      font-size: 1rem;
+      color: var(--muted);
+      font-weight: 300;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-top: 10px;
+    }
+
+    /* ── Card ──────────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: 0 30px 80px rgba(15, 23, 42, 0.08);
+      border-radius: var(--radius);
+      padding: 40px;
+      width: 100%;
+      max-width: 680px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── Label ─────────────────────────────────────────────────── */
+    label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    /* ── Textarea ──────────────────────────────────────────────── */
+    .textarea-wrap {
+      position: relative;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 160px;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1rem;
+      line-height: 1.7;
+      padding: 20px 22px;
+      resize: vertical;
+      outline: none;
+      transition: border-color var(--transition), box-shadow var(--transition);
+      box-shadow: inset 0 0 0 1px transparent;
+    }
+    textarea::placeholder { color: var(--muted); }
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+    }
+
+    .char-count {
+      position: absolute;
+      bottom: 10px;
+      right: 14px;
+      font-size: 0.72rem;
+      color: var(--muted);
+      pointer-events: none;
+    }
+
+    /* ── Quick Examples ────────────────────────────────────────── */
+    .examples {
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .examples-label {
+      width: 100%;
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .example-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.78rem;
+      padding: 5px 14px;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .example-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ── Analyze Button ────────────────────────────────────────── */
+    .analyze-btn {
+      margin-top: 24px;
+      width: 100%;
+      padding: 16px;
+      background: var(--accent);
+      color: #ffffff;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      border: none;
+      border-radius: 16px;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 18px 40px rgba(79, 70, 229, 0.18);
+    }
+    .analyze-btn:hover { transform: translateY(-2px); box-shadow: 0 22px 45px rgba(79, 70, 229, 0.24); }
+    .analyze-btn:active { transform: translateY(0); }
+    .analyze-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* spinning loader icon */
+    .spinner {
+      display: none;
+      width: 18px; height: 18px;
+      border: 2px solid rgba(0,0,0,0.3);
+      border-top-color: #000;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading .spinner { display: block; }
+    .loading .btn-text { display: none; }
+
+    /* ── Result Panel ──────────────────────────────────────────── */
+    .result {
+      margin-top: 28px;
+      border-radius: 12px;
+      padding: 28px;
+      display: none;
+      animation: fadeSlide 0.35s ease;
+      border: 1px solid transparent;
+    }
+    @keyframes fadeSlide {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .result.positive { background: var(--pos-bg); border-color: rgba(34,197,94,0.2); }
+    .result.negative { background: var(--neg-bg); border-color: rgba(239,68,68,0.2); }
+
+    .result-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .result-emoji { font-size: 2.8rem; line-height: 1; }
+    .result-emoji i { font-size: inherit; }
+
+    .result-label {
+      font-family: 'Playfair Display', serif;
+      font-size: 2rem;
+      font-weight: 700;
+    }
+    .positive .result-label { color: var(--pos); }
+    .negative .result-label { color: var(--neg); }
+
+    .confidence-badge {
+      font-size: 0.78rem;
+      font-weight: 500;
+      padding: 5px 12px;
+      border-radius: 20px;
+      letter-spacing: 0.05em;
+    }
+    .positive .confidence-badge { background: rgba(34,197,94,0.15); color: var(--pos); }
+    .negative .confidence-badge { background: rgba(239,68,68,0.15); color: var(--neg); }
+
+    /* ── Confidence Bar ────────────────────────────────────────── */
+    .bar-section { }
+    .bar-label-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .bar-track {
+      background: var(--border);
+      border-radius: 6px;
+      height: 8px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 6px;
+      transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+      width: 0%;
+    }
+    .positive .bar-fill { background: var(--pos); }
+    .negative .bar-fill { background: var(--neg); }
+
+    /* ── Error State ───────────────────────────────────────────── */
+    .error-msg {
+      margin-top: 14px;
+      padding: 12px 16px;
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.2);
+      border-radius: 10px;
+      color: var(--neg);
+      font-size: 0.88rem;
+      display: none;
+    }
+
+    /* ── Footer ────────────────────────────────────────────────── */
+    footer {
+      margin-top: 48px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.78rem;
+      z-index: 1;
+      position: relative;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="logo-line">
+      <div class="film-strip">
+        <span></span><span></span><span></span>
+      </div>
+      <h1>CineFeels</h1>
+      <div class="film-strip">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+    <p class="tagline">Movie Review Sentiment Analyzer</p>
+  </header>
+
+  <!-- Main Card -->
+  <div class="card">
+
+    <label for="reviewInput">Paste or type a movie review</label>
+
+    <!-- Textarea -->
+    <div class="textarea-wrap">
+      <textarea
+        id="reviewInput"
+        placeholder="e.g. "This film was a masterpiece — the acting, cinematography, and story all came together perfectly.""
+        maxlength="1000"
+        oninput="updateCharCount(this)"
+      ></textarea>
+      <span class="char-count" id="charCount">0 / 1000</span>
+    </div>
+
+    <!-- Quick example buttons -->
+    <div class="examples">
+      <span class="examples-label">Quick examples →</span>
+      <button class="example-btn" onclick="fillExample('positive')"><i class="fa-solid fa-face-smile"></i> Positive review</button>
+      <button class="example-btn" onclick="fillExample('negative')"><i class="fa-solid fa-face-frown"></i> Negative review</button>
+      <button class="example-btn" onclick="fillExample('mixed')"><i class="fa-solid fa-face-meh"></i> Mixed review</button>
+    </div>
+
+    <!-- Analyze Button -->
+    <button class="analyze-btn" id="analyzeBtn" onclick="analyze()">
+      <div class="spinner"></div>
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <span class="btn-text">Analyze Sentiment</span>
+    </button>
+
+    <!-- Error Message -->
+    <div class="error-msg" id="errorMsg"></div>
+
+    <!-- Result Panel -->
+    <div class="result" id="resultPanel">
+      <div class="result-top">
+        <div>
+          <div class="result-emoji" id="resultEmoji"></div>
+        </div>
+        <div>
+          <div class="result-label" id="resultLabel"></div>
+          <div class="confidence-badge" id="confidenceBadge"></div>
+        </div>
+      </div>
+      <div class="bar-section">
+        <div class="bar-label-row">
+          <span>Confidence</span>
+          <span id="confidencePct"></span>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill" id="barFill"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    Powered by <a href="#">FastAPI</a> &amp; Logistic Regression on IMDB Reviews &nbsp;·&nbsp;
+    Run <code>uvicorn main:app --reload</code> to start the server
+  </footer>
+
+  <script>
+    // ── Update character counter ────────────────────────────────
+    function updateCharCount(el) {
+      document.getElementById('charCount').textContent =
+        `${el.value.length} / 1000`;
+    }
+
+    // ── Fill textarea with a quick example ────────────────────
+    const examples = {
+      positive: "This movie was absolutely fantastic! The acting was superb and the storyline kept me hooked from start to finish. One of the best films I have seen in years.",
+      negative: "What a complete waste of time. The plot made no sense, the characters were flat, and the pacing was painfully slow. I almost walked out.",
+      mixed: "The visuals were stunning and the soundtrack was great, but the story felt rushed and the ending was disappointing. Worth watching once, but nothing remarkable."
+    };
+    function fillExample(type) {
+      const ta = document.getElementById('reviewInput');
+      ta.value = examples[type];
+      updateCharCount(ta);
+      // Clear previous result
+      document.getElementById('resultPanel').style.display = 'none';
+      document.getElementById('errorMsg').style.display = 'none';
+    }
+
+    // ── Main analyze function ──────────────────────────────────
+    async function analyze() {
+      const text = document.getElementById('reviewInput').value.trim();
+      const btn  = document.getElementById('analyzeBtn');
+      const err  = document.getElementById('errorMsg');
+      const panel = document.getElementById('resultPanel');
+
+      // Hide old results / errors
+      panel.style.display = 'none';
+      err.style.display = 'none';
+
+      if (!text) {
+        showError('Please enter a review before analyzing.');
+        return;
+      }
+
+      // Show loading state
+      btn.disabled = true;
+      btn.classList.add('loading');
+
+      try {
+        // POST the review text to the FastAPI /predict endpoint
+        const response = await fetch('/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+
+        if (!response.ok) throw new Error(`Server error: ${response.status}`);
+
+        const data = await response.json();
+        showResult(data);
+
+      } catch (e) {
+        showError(`Could not reach the server. Make sure FastAPI is running on port 8000.\n(${e.message})`);
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+      }
+    }
+
+    // ── Render the result panel ────────────────────────────────
+    function showResult(data) {
+      const panel = document.getElementById('resultPanel');
+      const pct   = Math.round(data.confidence * 100);
+      const isPos = data.sentiment === 'positive';
+
+      panel.className  = `result ${data.sentiment}`;
+      panel.style.display = 'block';
+
+      document.getElementById('resultEmoji').innerHTML    = isPos ? '<i class="fa-solid fa-face-smile"></i>' : '<i class="fa-solid fa-face-frown"></i>';
+      document.getElementById('resultLabel').textContent    = isPos ? 'Positive' : 'Negative';
+      document.getElementById('confidenceBadge').textContent = `${pct}% confident`;
+      document.getElementById('confidencePct').textContent  = `${pct}%`;
+
+      // Animate the bar after a tiny delay so CSS transition fires
+      const bar = document.getElementById('barFill');
+      bar.style.width = '0%';
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => { bar.style.width = `${pct}%`; });
+      });
+    }
+
+    // ── Show an error message ──────────────────────────────────
+    function showError(msg) {
+      const el = document.getElementById('errorMsg');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    // ── Allow Ctrl+Enter to submit ─────────────────────────────
+    document.getElementById('reviewInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) analyze();
+    });
+  </script>
+</body>
+</html>
